@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
+from matplotlib.patches import Circle
 plt.style.use('Solarize_Light2')
 
 # Define the class
@@ -121,44 +122,106 @@ class DoublePendulum:
 
 
     # animate the pendulum
-    def animate(self,skip_frame_number = 50,trace__length = 2000,repettion = "no"):
-
+    def animate(self, skip_frame_number=50, trace__length=2000, repettion="no"):
         self.set_coordinates()
 
-        fig,ax = plt.subplots()
+        # Layout: pendulum on the left, info panel on the right
+        fig, (ax, info) = plt.subplots(1, 2, figsize=(12, 7),
+                                       gridspec_kw={'width_ratios': [3, 1.3]})
+        fig.suptitle('Double Pendulum Simulation', fontsize=20,
+                     fontweight='bold', color='#2F3645')
+
+        c1 = '#800000'   # colour of bob 1
+        c2 = '#1F4E79'   # colour of bob 2
+
+        # ---------- Pendulum plot ----------
         ax.set_aspect('equal')
-        ax.set_xlim(-self.l, self.l)
-        ax.set_ylim(-self.l, self.l)
+        ax.set_xlim(-1.2 * self.l, 1.2 * self.l)
+        ax.set_ylim(-1.2 * self.l, 1.2 * self.l)
         ax.grid(color='gray', linestyle='--', linewidth=0.5)
-        ax.set_title('Double Pendulum', fontsize=20, fontweight='bold', color='#2F3645')
-        ax.set_xlabel('x', fontsize=15)
-        ax.set_ylabel('y', fontsize=15)
+        ax.set_xlabel('x (m)', fontsize=13)
+        ax.set_ylabel('y (m)', fontsize=13)
+
+        # pivot point
+        ax.plot(0, 0, marker='s', color='#2F3645', markersize=8, zorder=4)
 
         String_1, = ax.plot([], [], lw=2, color='#DCA47C')
         String_2, = ax.plot([], [], lw=2, color='#DCA47C')
-        mass1, = ax.plot([], [], 'o', color='#800000', markersize=self.mass_1 /(self.mass_1 + self.mass_2) * 20)
-        mass2, = ax.plot([], [], 'o', color='#800000', markersize=self.mass_2 /(self.mass_1 + self.mass_2) * 20)
-        trajectory_1, = ax.plot([], [], lw=0.5, color='#800000')
-        trajectory_2, = ax.plot([], [], lw=0.5, color='#800000')
+        trajectory_1, = ax.plot([], [], lw=0.6, color=c1, alpha=0.6)
+        trajectory_2, = ax.plot([], [], lw=0.6, color=c2, alpha=0.6)
 
+        # bob radius proportional to cube root of mass
+        r1 = 0.04 * self.l * self.mass_1 ** (1/3)
+        r2 = 0.04 * self.l * self.mass_2 ** (1/3)
+        mass1 = Circle((self.x1[0], self.y1[0]), r1, color=c1, zorder=3)
+        mass2 = Circle((self.x2[0], self.y2[0]), r2, color=c2, zorder=3)
+        ax.add_patch(mass1)
+        ax.add_patch(mass2)
+
+        # labels that follow the bobs
+        label1 = ax.text(0, 0, 'm1', fontsize=11, fontweight='bold', color=c1, zorder=5)
+        label2 = ax.text(0, 0, 'm2', fontsize=11, fontweight='bold', color=c2, zorder=5)
+
+        # ---------- Info panel ----------
+        info.axis('off')
+        info.set_xlim(0, 1)
+        info.set_ylim(0, 1)
+        box = dict(boxstyle='round,pad=0.8', facecolor='#FDF6E3', edgecolor='#93A1A1')
+
+        info.text(0.02, 0.97, 'System Parameters', fontsize=14,
+                  fontweight='bold', color='#2F3645', va='top')
+        params = (f"Mass 1  (m1) : {self.mass_1:g} kg\n"
+                  f"Mass 2  (m2) : {self.mass_2:g} kg\n"
+                  f"Rod 1   (L1) : {self.length_1:g} m\n"
+                  f"Rod 2   (L2) : {self.length_2:g} m\n"
+                  f"Gravity (g)  : {self.gravity:g} m/s²\n"
+                  f"\n"
+                  f"Initial θ1   : {self.theta1_0:g}°\n"
+                  f"Initial θ2   : {self.theta2_0:g}°")
+        info.text(0.02, 0.89, params, fontsize=11, family='monospace',
+                  va='top', bbox=box)
+
+        info.text(0.02, 0.40, 'Live', fontsize=14,
+                  fontweight='bold', color='#2F3645', va='top')
+        live_text = info.text(0.02, 0.32, '', fontsize=11, family='monospace',
+                              va='top', bbox=box)
+
+        # keep angles between -180° and 180° for display
+        wrap = lambda a: (np.degrees(a) + 180) % 360 - 180
 
         def update_frame(frame):
-                
-            mass1.set_data([self.x1[frame]], [self.y1[frame]])
-            mass2.set_data([self.x2[frame]], [self.y2[frame]])
-            String_1.set_data([0, self.x1[frame]], [0, self.y1[frame]])
-            String_2.set_data([self.x1[frame], self.x2[frame]], [self.y1[frame], self.y2[frame]])
-            trajectory_1.set_data(self.x1[max(0, frame - trace__length):frame], self.y1[max(0, frame - trace__length):frame])
-            trajectory_2.set_data(self.x2[max(0, frame - trace__length):frame], self.y2[max(0, frame - trace__length):frame])
-        
-            return mass1, mass2, String_1, String_2, trajectory_1, trajectory_2
-        
-        # number of frames to skip
+            x1, y1 = self.x1[frame], self.y1[frame]
+            x2, y2 = self.x2[frame], self.y2[frame]
+
+            mass1.set_center((x1, y1))
+            mass2.set_center((x2, y2))
+            String_1.set_data([0, x1], [0, y1])
+            String_2.set_data([x1, x2], [y1, y2])
+
+            start = max(0, frame - trace__length)
+            trajectory_1.set_data(self.x1[start:frame], self.y1[start:frame])
+            trajectory_2.set_data(self.x2[start:frame], self.y2[start:frame])
+
+            label1.set_position((x1 + r1 * 1.2, y1 + r1 * 1.2))
+            label2.set_position((x2 + r2 * 1.2, y2 + r2 * 1.2))
+
+            live_text.set_text(f"Time : {self.time[frame]:6.2f} s\n"
+                               f"θ1   : {wrap(self.theta1[frame]):7.1f}°\n"
+                               f"θ2   : {wrap(self.theta2[frame]):7.1f}°")
+
+            return (mass1, mass2, String_1, String_2,
+                    trajectory_1, trajectory_2, label1, label2, live_text)
+
         skip_frames = skip_frame_number
         frame_indices = np.arange(0, len(self.time), skip_frames)
 
-        ani = animation.FuncAnimation(fig, update_frame, frames=frame_indices, blit=True, interval=1,repeat = False if repettion == "no" else True)
+        dt = self.time[1] - self.time[0]
+        real_interval = skip_frames * dt * 1000   # ms of real time per frame
 
+        fig.tight_layout()
+        ani = animation.FuncAnimation(fig, update_frame, frames=frame_indices,
+                                      blit=True, interval=real_interval,
+                                      repeat=False if repettion == "no" else True)
         plt.show()
 
     def energy(self):
